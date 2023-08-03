@@ -25,7 +25,7 @@ func build(basedir, glob string, focus []string) (*element, []error) {
 	}
 
 	errs := sys.resolveDependencies(sys)
-	if err != nil {
+	if len(errs) > 0 {
 		return sys, errs
 	}
 
