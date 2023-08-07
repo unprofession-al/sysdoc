@@ -24,25 +24,6 @@ body {
   stroke: none;
 }
 
-.controls .controls-button {
-  font-weight: 700;
-}
-
-.info {
-  -webkit-user-select: none;
-     -moz-user-select: none;
-      -ms-user-select: none;
-          user-select: none;
-  pointer-events: none;
-}
-.info ul {
-  font-size: 13px;
-  list-style-type: none;
-  padding: 0;
-  line-height: 20px;
-  margin-top: 0;
-}
-
 .svg-background {
   fill: none;
   stroke: none;
@@ -77,5 +58,6 @@ nav {
 
 .logo {
   float: left;
+  font-weight: 700;
   width: 80px;
 }
