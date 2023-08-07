@@ -149,7 +149,8 @@ func (a *App) serveCmd(cmd *cobra.Command, args []string) {
 		a.flags.glob,
 	)
 	exitOnErr(err)
-	s.Run()
+	err = s.Run()
+	exitOnErr(err)
 }
 
 func (a *App) versionCmd(cmd *cobra.Command, args []string) {
