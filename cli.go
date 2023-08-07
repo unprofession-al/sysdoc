@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
-	"strings"
 
 	"github.com/carlmjohnson/versioninfo"
 	"github.com/spf13/cobra"
@@ -143,62 +141,16 @@ func (a *App) svgCmd(cmd *cobra.Command, args []string) {
 }
 
 func (a *App) serveCmd(cmd *cobra.Command, args []string) {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		var focus []string
-		for _, e := range strings.Split(r.URL.Path, "+") {
-			focus = append(focus, strings.Trim(e, "/"))
-		}
-
-		rendererName := r.URL.Query().Get("renderer")
-		if rendererName == "" {
-			rendererName = a.flags.serve.renderer
-		}
-
-		cfg, err := NewConfig(a.flags.configfile)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
-			return
-		}
-
-		// build system
-		sys, errs := build(a.flags.base, a.flags.glob, focus)
-		if len(errs) > 0 {
-			w.WriteHeader(http.StatusInternalServerError)
-			out := ""
-			for _, err = range errs {
-				out += fmt.Sprintf("%s\n", err.Error())
-			}
-			_, _ = w.Write([]byte(out))
-			return
-		}
-
-		// render template
-		renderer, ok := cfg.Renderer[rendererName]
-		if !ok {
-			exitOnErr(fmt.Errorf("renderer %s not specified in %s", rendererName, a.flags.configfile))
-		}
-		out, err := render(sys, renderer)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
-			return
-		}
-
-		// create svg
-		img, err := svg(out)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
-			return
-		}
-
-		w.Header().Set("Content-Type", "image/svg+xml")
-		_, _ = w.Write(img)
-	})
-
-	fmt.Printf("server listening on http://%s/, hit CTRL-C to stop server...\n", a.flags.serve.listener)
-	_ = http.ListenAndServe(a.flags.serve.listener, nil)
+	s, err := NewServer(
+		a.flags.serve.listener,
+		a.flags.serve.renderer,
+		a.flags.configfile,
+		a.flags.base,
+		a.flags.glob,
+	)
+	exitOnErr(err)
+	err = s.Run()
+	exitOnErr(err)
 }
 
 func (a *App) versionCmd(cmd *cobra.Command, args []string) {
