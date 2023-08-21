@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"text/template"
+	"time"
 )
 
 //go:embed server/templates/*
@@ -23,17 +24,22 @@ type server struct {
 	configfile      string
 	base            string
 	glob            string
+	cache           cache
 }
 
-func NewServer(listener, defaultRenderer, configfile, base, glob string) (*server, error) {
+func NewServer(listener, defaultRenderer, configfile, base, glob, cacheTimeout string) (*server, error) {
+	durr, err := time.ParseDuration(cacheTimeout)
+	if err != nil {
+		return nil, err
+	}
 	s := &server{
 		listener:        listener,
 		defaultRenderer: defaultRenderer,
 		configfile:      configfile,
 		base:            base,
 		glob:            glob,
+		cache:           *NewCache(durr),
 	}
-	var err error
 	s.indexTemplate, err = template.ParseFS(templateFS, "server/templates/index.html.tmpl")
 	return s, err
 }
@@ -56,6 +62,11 @@ func (s *server) Run() error {
 }
 
 func (s *server) HandleIndex(w http.ResponseWriter, r *http.Request) {
+	key := r.URL.RawQuery
+	if cached, ok := s.cache.Get(key); ok {
+		_, _ = w.Write(cached)
+		return
+	}
 	focusElems := r.URL.Query().Get("focus")
 	focus := strings.Split(focusElems, "_")
 
@@ -113,5 +124,7 @@ func (s *server) HandleIndex(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-	_, _ = w.Write(buf.Bytes())
+	data := buf.Bytes()
+	s.cache.Add(key, data)
+	_, _ = w.Write(data)
 }

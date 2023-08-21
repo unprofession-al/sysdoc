@@ -22,8 +22,9 @@ type App struct {
 			out      string
 		}
 		serve struct {
-			renderer string
-			listener string
+			renderer     string
+			listener     string
+			cacheTimeout string
 		}
 	}
 
@@ -82,6 +83,7 @@ called 'custom' using the following URL: http://localhost:8080/A.AB+C?renderer=c
 	}
 	serveCmd.PersistentFlags().StringVar(&a.flags.serve.listener, "listener", "127.0.0.1:8080", "listener to be used by the http server")
 	serveCmd.PersistentFlags().StringVar(&a.flags.serve.renderer, "renderer", "serve", "name of the default renderer to be used")
+	serveCmd.PersistentFlags().StringVar(&a.flags.serve.cacheTimeout, "cache-timeout", "10m", "timeout of the internal cache")
 	rootCmd.AddCommand(serveCmd)
 
 	// version
@@ -147,6 +149,7 @@ func (a *App) serveCmd(cmd *cobra.Command, args []string) {
 		a.flags.configfile,
 		a.flags.base,
 		a.flags.glob,
+		a.flags.serve.cacheTimeout,
 	)
 	exitOnErr(err)
 	err = s.Run()
