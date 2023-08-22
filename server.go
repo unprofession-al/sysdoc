@@ -45,15 +45,14 @@ func NewServer(listener, defaultRenderer, configfile, base, glob, cacheTimeout s
 }
 
 func (s *server) Run() error {
-	http.HandleFunc("/index.html", s.HandleIndex)
-
 	assets, err := fs.Sub(staticFS, "server")
 	if err != nil {
 		return err
 	}
 	fs := http.FileServer(http.FS(assets))
 	http.Handle("/static/", fs)
-
+	http.HandleFunc("/svg/", s.HandleSVG)
+	http.HandleFunc("/index.html", s.HandleIndex)
 	http.HandleFunc("/", s.HandleIndex)
 
 	fmt.Printf("server listening on http://%s/, hit CTRL-C to stop server...\n", s.listener)
@@ -62,6 +61,19 @@ func (s *server) Run() error {
 }
 
 func (s *server) HandleIndex(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+
+	err := s.indexTemplate.Execute(&buf, "")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(err.Error()))
+		return
+	}
+	data := buf.Bytes()
+	_, _ = w.Write(data)
+}
+
+func (s *server) HandleSVG(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.RawQuery
 	if cached, ok := s.cache.Get(key); ok {
 		_, _ = w.Write(cached)
@@ -114,17 +126,10 @@ func (s *server) HandleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var buf bytes.Buffer
+	tidy := strings.TrimSuffix(strings.TrimPrefix(string(img), `<?xml version="1.0" encoding="utf-8"?><svg`), "</xml>")
+	tidy = `<svg id="svg" class="svg"` + tidy
 
-	thing := strings.TrimSuffix(strings.TrimPrefix(string(img), `<?xml version="1.0" encoding="utf-8"?><svg`), "</xml>")
-	thing = `<svg id="svg" class="svg"` + thing
-	err = s.indexTemplate.Execute(&buf, thing)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-	data := buf.Bytes()
-	s.cache.Add(key, data)
-	_, _ = w.Write(data)
+	s.cache.Add(key, []byte(tidy))
+	w.Header().Set("content-Type", "image/svg+xml")
+	_, _ = w.Write([]byte(tidy))
 }
