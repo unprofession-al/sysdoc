@@ -29,9 +29,10 @@ type server struct {
 	glob            string
 	cache           cache.Cache
 	persistence     persistence.Persistence
+	renderer        Renderer
 }
 
-func NewServer(listener, defaultRenderer, configfile, base, glob, cacheTimeout string, p persistence.Persistence) (*server, error) {
+func NewServer(listener, defaultRenderer, configfile, base, glob, cacheTimeout string, p persistence.Persistence, r Renderer) (*server, error) {
 	durr, err := time.ParseDuration(cacheTimeout)
 	if err != nil {
 		return nil, err
@@ -44,6 +45,7 @@ func NewServer(listener, defaultRenderer, configfile, base, glob, cacheTimeout s
 		glob:            glob,
 		cache:           *cache.New(durr),
 		persistence:     p,
+		renderer:        r,
 	}
 	s.indexTemplate, err = template.ParseFS(templateFS, "server/templates/index.html.tmpl")
 	return s, err
@@ -122,7 +124,7 @@ func (s *server) HandleSVG(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// build system
-	sys, errs := build(s.base, s.glob, focus, s.persistence)
+	sys, errs := New(s.base, s.glob, focus, s.persistence)
 	if len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		out := ""
@@ -138,15 +140,7 @@ func (s *server) HandleSVG(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		exitOnErr(fmt.Errorf("renderer %s not specified in %s", rendererName, s.configfile))
 	}
-	out, err := render(sys, renderer)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
-
-	// create svg
-	img, err := svg(out)
+	img, err := s.renderer.Do(sys, renderer, false)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))

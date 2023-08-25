@@ -7,10 +7,36 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sysdoc/internal/persistence"
 
 	"github.com/adrg/frontmatter"
 	"github.com/go-git/go-billy/v5"
 )
+
+func New(basedir, glob string, focus []string, p persistence.Persistence) (*element, []error) {
+	sys, err := newElementFromPersistence(basedir, glob, p.Filesystem())
+	if err != nil {
+		return sys, []error{err}
+	}
+
+	errs := sys.resolveDependencies(sys)
+	if len(errs) > 0 {
+		return sys, errs
+	}
+
+	if len(focus) > 0 {
+		err = sys.focus(focus)
+		if err != nil {
+			return sys, []error{err}
+		}
+	}
+
+	err = sys.propagateInterfaces()
+	if err != nil {
+		return sys, []error{err}
+	}
+	return sys, nil
+}
 
 type elementConfiguration struct {
 	Name         string                             `yaml:"name" json:"name"`

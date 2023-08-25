@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"sysdoc/internal/postprocessor"
+	"sysdoc/internal/postprocessor/d2"
 	"text/template"
 )
 
@@ -107,7 +110,17 @@ func (d DependencyTemplateData) ViaPropagation(sep string) string {
 
 // RENDER
 
-func render(e *element, rc renderConfig) (string, error) {
+type Renderer struct {
+	postprocessors map[string]func(postprocessor.Config) (postprocessor.Postprocessor, error)
+}
+
+func NewRenderer() *Renderer {
+	r := &Renderer{postprocessors: map[string]func(postprocessor.Config) (postprocessor.Postprocessor, error){}}
+	r.postprocessors["d2"] = d2.New
+	return r
+}
+
+func (r *Renderer) Do(e *element, rc renderConfig, noPostprocessor bool) ([]byte, error) {
 	data := struct {
 		Elements     string
 		Dependencies string
@@ -116,14 +129,14 @@ func render(e *element, rc renderConfig) (string, error) {
 
 	er, err := newElementTemplateData(e, rc.Templates.Element).render()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	data.Elements += er
 
 	for _, dep := range e.getDependencies() {
 		dr, err := newDependencyTemplateData(dep, rc.Templates.Dependency).render()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		data.Dependencies += dr
 	}
@@ -131,7 +144,7 @@ func render(e *element, rc renderConfig) (string, error) {
 	for _, prop := range e.getPropagations() {
 		pr, err := newInterfaceTemplateData(prop, rc.Templates.Propagation).render()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		data.Propagations += pr
 	}
@@ -139,19 +152,36 @@ func render(e *element, rc renderConfig) (string, error) {
 	var b bytes.Buffer
 	t, err := template.New("tmpl").Parse(rc.Templates.Global)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	err = t.Execute(&b, data)
-	return b.String(), err
+	if noPostprocessor || rc.Postprocessor.Name == "" {
+		return b.Bytes(), err
+	}
+
+	initPostprocessor, ok := r.postprocessors[rc.Postprocessor.Name]
+	if !ok {
+		list := []string{}
+		for key := range r.postprocessors {
+			list = append(list, key)
+		}
+		return nil, fmt.Errorf("No postprocessor with name '%s' available, please choose one of %v...", rc.Postprocessor.Name, list)
+	}
+	postprocessor, err := initPostprocessor(rc.Postprocessor)
+	if err != nil {
+		return nil, err
+	}
+
+	return postprocessor.Process(b.String())
 }
 
 type renderConfig struct {
-	ChildIndent string `yaml:"child_indent"`
-	Templates   struct {
+	Templates struct {
 		Element     string `yaml:"element"`
 		Dependency  string `yaml:"dependency"`
 		Propagation string `yaml:"propagation"`
 		Global      string `yaml:"global"`
 	} `yaml:"templates"`
+	Postprocessor postprocessor.Config
 }

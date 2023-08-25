@@ -22,11 +22,9 @@ type App struct {
 			pass    string
 		}
 		render struct {
-			renderer string
-		}
-		svg struct {
-			renderer string
-			out      string
+			renderer      string
+			out           string
+			noPostprocess bool
 		}
 		serve struct {
 			renderer     string
@@ -35,6 +33,9 @@ type App struct {
 		}
 	}
 
+	// Postprocessors
+	renderer *Renderer
+
 	// entry point
 	Execute func() error
 }
@@ -42,6 +43,8 @@ type App struct {
 func NewApp() *App {
 	a := &App{}
 	appName := "sysdoc"
+
+	a.renderer = NewRenderer()
 
 	// root
 	rootCmd := &cobra.Command{
@@ -61,21 +64,13 @@ func NewApp() *App {
 	// render
 	renderCmd := &cobra.Command{
 		Use:   "render",
-		Short: "renders system documentation in a given template to standard output",
+		Short: "renders system documentation in a given template",
 		Run:   a.renderCmd,
 	}
 	renderCmd.PersistentFlags().StringVar(&a.flags.render.renderer, "renderer", "default", "name of the renederer (set of templates in the configuration file)")
+	renderCmd.PersistentFlags().StringVar(&a.flags.render.out, "out", "", "name of the file to be written (leave empty for STDOUT)")
+	renderCmd.PersistentFlags().BoolVar(&a.flags.render.noPostprocess, "no-postprocess", false, "do not run post processor")
 	rootCmd.AddCommand(renderCmd)
-
-	// svg
-	svgCmd := &cobra.Command{
-		Use:   "svg",
-		Short: "renders system documentation in a given d2lang template to a svg file",
-		Run:   a.svgCmd,
-	}
-	svgCmd.PersistentFlags().StringVar(&a.flags.svg.renderer, "renderer", "default", "name of the renederer (set of templates in the configuration file)")
-	svgCmd.PersistentFlags().StringVar(&a.flags.svg.out, "out", "sysdoc.svg", "name of the file to be written")
-	rootCmd.AddCommand(svgCmd)
 
 	// serve
 	serveCmd := &cobra.Command{
@@ -123,7 +118,7 @@ func (a *App) renderCmd(cmd *cobra.Command, args []string) {
 	exitOnErr(err)
 
 	// build system
-	sys, errs := build(a.flags.base, a.flags.glob, a.flags.focus, p)
+	sys, errs := New(a.flags.base, a.flags.glob, a.flags.focus, p)
 	exitOnErr(errs...)
 
 	// render template
@@ -131,46 +126,15 @@ func (a *App) renderCmd(cmd *cobra.Command, args []string) {
 	if !ok {
 		exitOnErr(fmt.Errorf("renderer %s not specified in %s", a.flags.render.renderer, a.flags.configfile))
 	}
-	out, err := render(sys, renderer)
+	data, err := a.renderer.Do(sys, renderer, a.flags.render.noPostprocess)
 	exitOnErr(err)
 
-	fmt.Println(out)
-}
-
-func (a *App) svgCmd(cmd *cobra.Command, args []string) {
-	var pc persistence.Config
-	pc.Filepath = a.flags.base
-	pc.Git.URL = a.flags.git.url
-	pc.Git.Pass = a.flags.git.pass
-	pc.Git.Keyfile = a.flags.git.keyfile
-	p, err := persistence.New(pc)
-	exitOnErr(err)
-	err = p.CheckoutBranch(a.flags.git.branch)
-	exitOnErr(err)
-
-	cfg, err := NewConfig(a.flags.configfile, p.Filesystem())
-	exitOnErr(err)
-
-	// build system
-	sys, errs := build(a.flags.base, a.flags.glob, a.flags.focus, p)
-	exitOnErr(errs...)
-
-	// render template
-	renderer, ok := cfg.Renderer[a.flags.svg.renderer]
-	if !ok {
-		exitOnErr(fmt.Errorf("renderer %s not specified in %s", a.flags.svg.renderer, a.flags.configfile))
+	if a.flags.render.out != "" {
+		err = os.WriteFile(a.flags.render.out, data, 0644)
+		exitOnErr(err)
+	} else {
+		fmt.Println(string(data))
 	}
-	out, err := render(sys, renderer)
-	exitOnErr(err)
-
-	// create svg
-	img, err := svg(out)
-	exitOnErr(err)
-
-	err = os.WriteFile(a.flags.svg.out, img, 0644)
-	exitOnErr(err)
-
-	fmt.Printf("file '%s' written...\n", a.flags.svg.out)
 }
 
 func (a *App) serveCmd(cmd *cobra.Command, args []string) {
@@ -192,6 +156,7 @@ func (a *App) serveCmd(cmd *cobra.Command, args []string) {
 		a.flags.glob,
 		a.flags.serve.cacheTimeout,
 		p,
+		*a.renderer,
 	)
 	exitOnErr(err)
 	err = s.Run()
