@@ -59,6 +59,17 @@
           Reset Zoom
         </button>
       </div>
+
+
+      <div class="controls float-child">
+        <form>
+          <select name="branches" id="branches">
+            <option value="">default</option
+          </select>
+        <form>
+      </div>
+
+      </div>
       <div class="shortcuts float-child">
         <a href="/index.html">Overview</a>
       </div>
@@ -69,13 +80,15 @@
     <script type="text/javascript" src="static/main.js"></script>
     <script type="text/javascript" src="static/hover.js"></script>
     <script>
+      // load svg 
       var url = window.location.origin + "/svg/" + window.location.search;
       let xhr = new XMLHttpRequest();
       xhr.open('GET', url);
       xhr.send();
       xhr.onload = function() {
         if (xhr.status != 200) {
-          console.log(`Error ${xhr.status}: ${xhr.statusText}`);
+          console.log(`Error ${xhr.status}: ${xhr.response}`);
+          alert(`Error ${xhr.status}: ${xhr.response}`);
         } else {
           document.getElementById('placeholder').outerHTML = xhr.response;
           initSVGMap();
@@ -85,7 +98,30 @@
 
       xhr.onerror = function() {
         console.log("Request failed");
+        alert("Request failed");
       };
+
+      // list branches
+      var branches = document.getElementById('branches');
+      async function loadBranches() {
+        const response = await fetch(window.location.origin + "/branches.json");
+        const branchlist = await response.json();
+        for (var i = 0; i < branchlist.length; i++) { 
+          let newOption = new Option(branchlist[i],branchlist[i]);
+          branches.add(newOption, undefined)
+        }
+        branches.addEventListener("change", function(){
+          console.log(branches.value);
+          var params = new URLSearchParams(window.location.search)
+          params.set("branch", branches.value)
+          window.location.href =  '//' + location.host + location.pathname + "?" + params.toString();
+        });
+      };
+
+      loadBranches();
+
+      // switch branches
+
     </script>
   </body>
 </html>

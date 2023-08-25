@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 
 func TestCache_Add(t *testing.T) {
 	// Create a new cache instance
-	cache := NewCache(time.Minute)
+	cache := New(time.Minute)
 
 	// Add a cache element with a key and data
 	key := "test"
@@ -28,7 +28,7 @@ func TestCache_Add(t *testing.T) {
 
 func TestCache_Get(t *testing.T) {
 	// Create a new cache instance
-	cache := NewCache(time.Minute)
+	cache := New(time.Minute)
 
 	// Add a cache element with a key and data
 	key := "test"
@@ -51,7 +51,7 @@ func TestCache_Get(t *testing.T) {
 
 func TestCache_Get_Expired(t *testing.T) {
 	// Create a new cache instance with a short timeout duration
-	cache := NewCache(1 * time.Millisecond)
+	cache := New(1 * time.Millisecond)
 
 	// Add a cache element with a key and data
 	key := "test"
@@ -77,7 +77,7 @@ func TestCache_Get_Expired(t *testing.T) {
 
 func TestCache_Purge(t *testing.T) {
 	// Create a new cache instance
-	cache := NewCache(time.Minute)
+	cache := New(time.Minute)
 
 	// Add multiple cache elements
 	cache.Add("key1", []byte("data1"))

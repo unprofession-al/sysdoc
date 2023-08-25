@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sysdoc/internal/persistence"
 
 	"oss.terrastruct.com/d2/d2graph"
 	"oss.terrastruct.com/d2/d2layouts/d2elklayout"
@@ -18,8 +19,8 @@ func main() {
 	exitOnErr(err)
 }
 
-func build(basedir, glob string, focus []string) (*element, []error) {
-	sys, err := newElementFromFS(basedir, glob)
+func build(basedir, glob string, focus []string, p persistence.Persistence) (*element, []error) {
+	sys, err := newElementFromPersistence(basedir, glob, p.Filesystem())
 	if err != nil {
 		return sys, []error{err}
 	}

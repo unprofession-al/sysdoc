@@ -3,13 +3,13 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/adrg/frontmatter"
+	"github.com/go-git/go-billy/v5"
 )
 
 type elementConfiguration struct {
@@ -20,19 +20,29 @@ type elementConfiguration struct {
 	Doc          []byte                             `yaml:"-" json:"-"`
 }
 
-func newElementConfigurationFromFile(path string) (elementConfiguration, error) {
+func newElementConfigurationFromFile(path string, filesys billy.Filesystem) (elementConfiguration, error) {
 	ec := elementConfiguration{}
-	info, err := os.Stat(path)
-	if err != nil || info.IsDir() {
-		return ec, nil
-	}
-	data, err := os.ReadFile(path)
+	info, err := filesys.Stat(path)
 	if err != nil {
-		err = fmt.Errorf("Could not read file '%s', error occured: %w", path, err)
+		err = fmt.Errorf("Could not stat file '%s', error occured: %w", path, err)
 		return ec, err
 	}
-	reader := bytes.NewReader(data)
-	doc, err := frontmatter.Parse(reader, &ec)
+	if info.IsDir() {
+		return ec, fmt.Errorf("'%s' is a directory, but a file is expected", path)
+	}
+	file, err := filesys.Open(path)
+	if err != nil {
+		err = fmt.Errorf("Could not open file '%s', error occured: %w", path, err)
+		return ec, err
+	}
+	defer file.Close()
+	b := new(bytes.Buffer)
+	_, err = b.ReadFrom(file)
+	if err != nil {
+		err = fmt.Errorf("Could not read data of '%s', error occured: %w", path, err)
+		return ec, err
+	}
+	doc, err := frontmatter.Parse(b, &ec)
 	if err != nil {
 		err = fmt.Errorf("Could not parse data of '%s', error occured: %w", path, err)
 		return ec, err
@@ -97,36 +107,56 @@ func getPosition(basepath, path string) []string {
 	return pos
 }
 
-func newElementFromFS(basepath, matcher string) (*element, error) {
+func newElementFromPersistence(basepath, matcher string, filesys billy.Filesystem) (*element, error) {
 	basepath = filepath.Clean(basepath)
-	_, err := os.Stat(basepath)
+	_, err := filesys.Stat(basepath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not stat '%s': %w", basepath, err)
 	}
 
 	// read all configuration files
 	configs := map[string]elementConfiguration{}
-	err = filepath.WalkDir(basepath, func(path string, dir fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		info, err := os.Stat(path)
+	var walk func(string, string, billy.Filesystem) error
+	walk = func(path, matcher string, filesys billy.Filesystem) error {
+		info, err := filesys.Stat(path)
 		if err != nil {
 			err = fmt.Errorf("Could not stat file '%s', error occured: %w", path, err)
 			return err
 		}
-		if !info.IsDir() {
+		if info.IsDir() {
+			elems, err := filesys.ReadDir(path)
+			if err != nil {
+				return err
+			}
+			// currently sysdoc assumes that every directory is a "element". If no README in present, an "empty config" is used
+			handled := false
+			for _, elem := range elems {
+				if elem.IsDir() {
+					next := filepath.Join(path, elem.Name())
+					err = walk(next, matcher, filesys)
+					if err != nil {
+						return err
+					}
+				}
+				if match, _ := filepath.Match(matcher, elem.Name()); match {
+					c, err := newElementConfigurationFromFile(filepath.Join(path, elem.Name()), filesys)
+					if err != nil {
+						return err
+					}
+					configs[path] = c
+					handled = true
+				}
+			}
+			if !handled {
+				configs[path] = elementConfiguration{}
+			}
 			return nil
 		}
-		c, err := newElementConfigurationFromFile(filepath.Join(path, matcher))
-		if err != nil {
-			return err
-		}
-		configs[filepath.Clean(path)] = c
 		return nil
-	})
+	}
+	err = walk(basepath, matcher, filesys)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not walk '%s': %w", basepath, err)
 	}
 
 	// generate element tree from configurations

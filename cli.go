@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sysdoc/internal/persistence"
 
 	"github.com/carlmjohnson/versioninfo"
 	"github.com/spf13/cobra"
@@ -14,7 +15,13 @@ type App struct {
 		base       string
 		glob       string
 		focus      []string
-		render     struct {
+		git        struct {
+			url     string
+			branch  string
+			keyfile string
+			pass    string
+		}
+		render struct {
 			renderer string
 		}
 		svg struct {
@@ -41,10 +48,14 @@ func NewApp() *App {
 		Use:   appName,
 		Short: "sysdoc allows to document dependencies between systems",
 	}
-	rootCmd.PersistentFlags().StringVar(&a.flags.configfile, "config", "./sysdoc.yaml", "configuration file path")
+	rootCmd.PersistentFlags().StringVar(&a.flags.configfile, "config", "sysdoc.yaml", "configuration file path relative to the base")
 	rootCmd.PersistentFlags().StringVar(&a.flags.base, "base", ".", "base directory of the sysdoc definitions")
 	rootCmd.PersistentFlags().StringVar(&a.flags.glob, "glob", "README.md", "glob to find sysdoc definitions")
 	rootCmd.PersistentFlags().StringSliceVar(&a.flags.focus, "focus", []string{}, "elements to be focussed")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.url, "git.url", "", "configuration file path")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.branch, "git.branch", "refs/heads/master", "git branch to be used")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.pass, "git.pass", os.Getenv("KEY_PASS"), "base directory of the sysdoc definitions (can be set via environment variable 'KEY_PASS')")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.keyfile, "git.keyfile", "", "glob to find sysdoc definitions")
 	a.Execute = rootCmd.Execute
 
 	// render
@@ -98,11 +109,21 @@ called 'custom' using the following URL: http://localhost:8080/A.AB+C?renderer=c
 }
 
 func (a *App) renderCmd(cmd *cobra.Command, args []string) {
-	cfg, err := NewConfig(a.flags.configfile)
+	var pc persistence.Config
+	pc.Filepath = a.flags.base
+	pc.Git.URL = a.flags.git.url
+	pc.Git.Pass = a.flags.git.pass
+	pc.Git.Keyfile = a.flags.git.keyfile
+	p, err := persistence.New(pc)
+	exitOnErr(err)
+	err = p.CheckoutBranch(a.flags.git.branch)
+	exitOnErr(err)
+
+	cfg, err := NewConfig(a.flags.configfile, p.Filesystem())
 	exitOnErr(err)
 
 	// build system
-	sys, errs := build(a.flags.base, a.flags.glob, a.flags.focus)
+	sys, errs := build(a.flags.base, a.flags.glob, a.flags.focus, p)
 	exitOnErr(errs...)
 
 	// render template
@@ -117,11 +138,21 @@ func (a *App) renderCmd(cmd *cobra.Command, args []string) {
 }
 
 func (a *App) svgCmd(cmd *cobra.Command, args []string) {
-	cfg, err := NewConfig(a.flags.configfile)
+	var pc persistence.Config
+	pc.Filepath = a.flags.base
+	pc.Git.URL = a.flags.git.url
+	pc.Git.Pass = a.flags.git.pass
+	pc.Git.Keyfile = a.flags.git.keyfile
+	p, err := persistence.New(pc)
+	exitOnErr(err)
+	err = p.CheckoutBranch(a.flags.git.branch)
+	exitOnErr(err)
+
+	cfg, err := NewConfig(a.flags.configfile, p.Filesystem())
 	exitOnErr(err)
 
 	// build system
-	sys, errs := build(a.flags.base, a.flags.glob, a.flags.focus)
+	sys, errs := build(a.flags.base, a.flags.glob, a.flags.focus, p)
 	exitOnErr(errs...)
 
 	// render template
@@ -143,6 +174,16 @@ func (a *App) svgCmd(cmd *cobra.Command, args []string) {
 }
 
 func (a *App) serveCmd(cmd *cobra.Command, args []string) {
+	var pc persistence.Config
+	pc.Filepath = a.flags.base
+	pc.Git.URL = a.flags.git.url
+	pc.Git.Pass = a.flags.git.pass
+	pc.Git.Keyfile = a.flags.git.keyfile
+	p, err := persistence.New(pc)
+	exitOnErr(err)
+	err = p.CheckoutBranch(a.flags.git.branch)
+	exitOnErr(err)
+
 	s, err := NewServer(
 		a.flags.serve.listener,
 		a.flags.serve.renderer,
@@ -150,6 +191,7 @@ func (a *App) serveCmd(cmd *cobra.Command, args []string) {
 		a.flags.base,
 		a.flags.glob,
 		a.flags.serve.cacheTimeout,
+		p,
 	)
 	exitOnErr(err)
 	err = s.Run()
