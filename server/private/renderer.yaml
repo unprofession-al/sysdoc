@@ -1,0 +1,88 @@
+---
+postprocessor:
+  name: d2
+templates:
+  element: |
+    {{if eq .Fragment "root"}}
+      {{range $child := .Children}}
+      {{$child}}
+      {{- end}}
+    {{- else}}
+      {{.Fragment}}: "{{if .Name}}{{.Name}}{{else}}{{.ID "."}}{{end}}{{if (index .Tags "external")}} (external){{end}}{{if (index .Tags "obsolete")}} (obsolete){{end}}" {
+      style: {
+        border-radius: 14
+        stroke-width: 0
+      }
+      class: element 
+      {{if (index .Tags "focussed")}}
+        style: {
+          fill: "#22bbbb"
+        }
+      {{- end}}
+      {{if eq (index .Tags "type") "user"}}
+        shape: person
+      {{- end}}
+      {{if (index .Tags "link")}}
+        tooltip: Documentation at "{{index .Tags "link"}}"
+      {{- end}}
+      {{if (index .Tags "external")}}
+        style: {
+          opacity: 0.4
+        } 
+      {{- end}}
+      {{if (index .Tags "obsolete")}}
+        style: {
+          fill: "#cc7745"
+          opacity: 0.8
+        } 
+      {{- end}}
+      {{range $child := .Children}}
+        {{$child}}
+      {{- end}}
+      {{range $interf := .Interfaces}}
+        {{$interf.Fragment}}{{if $interf.Name}}: "{{$interf.Name}}"{{end}} {
+          shape: diamond
+          {{- if (index .Tags "link")}}
+          link: "{{index .Tags "link"}}"
+          {{- end}}
+          tooltip: "{{$.ID "."}}.{{$interf.Fragment}}"
+          style: {
+            stroke-width: 0
+            fill: "#8e89c4"
+          }
+        }
+      {{- end}}
+      {{range $prop := .Propagations}}
+        "{{$prop.Fragment}}" {
+          shape: circle
+          style: {
+            stroke-width: 0
+            fill: "#8e89c4"
+          }
+        }
+      {{- end}}
+      }
+
+    {{- end}}
+
+  dependency: |
+    {{.BelongsToID "."}} -> {{.ViaPropagation "."}}{{if .Description}}: {{.Description}}{{end}}{{if (index .Tags "manual")}} (manual) {
+      style: {
+        stroke-dash: 3
+      }
+    }{{end}}
+  
+  propagation: |
+    {{.ID "."}} -> {{.PropagatesID "."}}: propagates
+
+  global: |
+    direction: right
+
+    # Elements
+    {{.Elements}}
+
+    # Dependencies
+    {{.Dependencies}}
+    
+    # Propagations
+    {{.Propagations}}

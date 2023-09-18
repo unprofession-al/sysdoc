@@ -150,8 +150,6 @@ func (a *App) serveCmd(cmd *cobra.Command, args []string) {
 
 	s, err := NewServer(
 		a.flags.serve.listener,
-		a.flags.serve.renderer,
-		a.flags.configfile,
 		a.flags.base,
 		a.flags.glob,
 		a.flags.serve.cacheTimeout,

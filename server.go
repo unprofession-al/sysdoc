@@ -12,43 +12,57 @@ import (
 	"sysdoc/internal/persistence"
 	"text/template"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
-//go:embed server/templates/*
+//go:embed server/private/*
 var templateFS embed.FS
 
 //go:embed server/static/*
 var staticFS embed.FS
 
 type server struct {
-	indexTemplate   *template.Template
-	listener        string
-	defaultRenderer string
-	configfile      string
-	base            string
-	glob            string
-	cache           cache.Cache
-	persistence     persistence.Persistence
-	renderer        Renderer
+	indexTemplate  *template.Template
+	listener       string
+	base           string
+	glob           string
+	cache          cache.Cache
+	persistence    persistence.Persistence
+	rendererConfig renderConfig
+	renderer       Renderer
 }
 
-func NewServer(listener, defaultRenderer, configfile, base, glob, cacheTimeout string, p persistence.Persistence, r Renderer) (*server, error) {
+func NewServer(listener, base, glob, cacheTimeout string, p persistence.Persistence, r Renderer) (*server, error) {
 	durr, err := time.ParseDuration(cacheTimeout)
 	if err != nil {
 		return nil, err
 	}
+
 	s := &server{
-		listener:        listener,
-		defaultRenderer: defaultRenderer,
-		configfile:      configfile,
-		base:            base,
-		glob:            glob,
-		cache:           *cache.New(durr),
-		persistence:     p,
-		renderer:        r,
+		listener:    listener,
+		base:        base,
+		glob:        glob,
+		cache:       *cache.New(durr),
+		persistence: p,
+		renderer:    r,
 	}
-	s.indexTemplate, err = template.ParseFS(templateFS, "server/templates/index.html.tmpl")
-	return s, err
+
+	rendererConfig, err := templateFS.ReadFile("server/private/renderer.yaml")
+	if err != nil {
+		return nil, err
+	}
+	err = yaml.Unmarshal(rendererConfig, &s.rendererConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	s.indexTemplate, err = template.ParseFS(templateFS, "server/private/index.html.tmpl")
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 func (s *server) Run() error {
@@ -112,23 +126,12 @@ func (s *server) HandleSVG(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rendererName := r.URL.Query().Get("renderer")
-	if rendererName == "" {
-		rendererName = s.defaultRenderer
-	}
-
-	cfg, err := NewConfig(s.configfile, s.persistence.Filesystem())
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte(err.Error()))
-		return
-	}
 	// build system
 	sys, errs := New(s.base, s.glob, focus, s.persistence)
 	if len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		out := ""
-		for _, err = range errs {
+		for _, err := range errs {
 			out += fmt.Sprintf("%s\n", err.Error())
 		}
 		_, _ = w.Write([]byte(out))
@@ -136,11 +139,7 @@ func (s *server) HandleSVG(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// render template
-	renderer, ok := cfg.Renderer[rendererName]
-	if !ok {
-		exitOnErr(fmt.Errorf("renderer %s not specified in %s", rendererName, s.configfile))
-	}
-	img, err := s.renderer.Do(sys, renderer, false)
+	img, err := s.renderer.Do(sys, s.rendererConfig, false)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(err.Error()))

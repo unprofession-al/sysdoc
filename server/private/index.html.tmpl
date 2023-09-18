@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>sysdoc</title>
+    <link href="https://fonts.googleapis.com/css?family=Karla:400,700" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css">
+  </head>
+  <body>
+
+    <div id="alert-box"></div>
+
+    <div id="placeholder">
+      <svg id="loader" version="1.1" viewBox="0 0 100 100">
+       <path fill="#095f91" d="M31.6,3.5C5.9,13.6-6.6,42.7,3.5,68.4c10.1,25.7,39.2,38.3,64.9,28.1l-3.1-7.9c-21.3,8.4-45.4-2-53.8-23.3
+        c-8.4-21.3,2-45.4,23.3-53.8L31.6,3.5z">
+            <animateTransform 
+               attributeName="transform" 
+               attributeType="XML" 
+               type="rotate"
+               dur="2s" 
+               from="0 50 50"
+               to="360 50 50" 
+               repeatCount="indefinite" />
+        </path>
+       <path fill="#095f91" d="M42.3,39.6c5.7-4.3,13.9-3.1,18.1,2.7c4.3,5.7,3.1,13.9-2.7,18.1l4.1,5.5c8.8-6.5,10.6-19,4.1-27.7
+        c-6.5-8.8-19-10.6-27.7-4.1L42.3,39.6z">
+            <animateTransform 
+               attributeName="transform" 
+               attributeType="XML" 
+               type="rotate"
+               dur="1s" 
+               from="0 50 50"
+               to="-360 50 50" 
+               repeatCount="indefinite" />
+        </path>
+       <path fill="#095f91" d="M82,35.7C74.1,18,53.4,10.1,35.7,18S10.1,46.6,18,64.3l7.6-3.4c-6-13.5,0-29.3,13.5-35.3s29.3,0,35.3,13.5
+        L82,35.7z">
+            <animateTransform 
+               attributeName="transform" 
+               attributeType="XML" 
+               type="rotate"
+               dur="2s" 
+               from="0 50 50"
+               to="360 50 50" 
+               repeatCount="indefinite" />
+        </path>
+      </svg>
+    </div>
+
+    <nav class="float-container">
+      <div class="logo float-child">
+        sysdoc
+      </div>
+
+      <div class="controls float-child">
+        <form>
+          <select name="branches" id="branches"></select>
+        <form>
+      </div>
+
+      </div>
+      <div class="shortcuts float-child">
+        <a onclick="updateQueryParam('focus', '');">Overview</a>
+      </div>
+    </nav>
+
+    <script type="text/javascript" src="static/alert.js"></script>
+    <script type="text/javascript" src="static/hover.js"></script>
+    <script type="text/javascript" src="static/svg-pan-zoom.js"></script>
+    <script>
+      // load svg 
+      var url = window.location.origin + "/svg/" + window.location.search;
+      let xhr = new XMLHttpRequest();
+      xhr.open('GET', url);
+      xhr.send();
+      xhr.onload = function() {
+        if (xhr.status != 200) {
+          console.log(`Error ${xhr.status}: ${xhr.response}`);
+          displayAlert(`Error ${xhr.status}: ${xhr.response}`);
+        } else {
+          document.getElementById('placeholder').outerHTML = xhr.response;
+          var panZoomTiger = svgPanZoom('#svg');
+          initHover();
+          addOnClick();
+        }
+      };
+
+      xhr.onerror = function() {
+        console.log("Request failed");
+        displayAlert("Request failed");
+      };
+
+      // list branches
+      var branches = document.getElementById('branches');
+      async function loadBranches() {
+        const response = await fetch(window.location.origin + "/branches.json");
+        const branchlist = await response.json();
+        let searchParams = new URLSearchParams(window.location.search);
+        let branch = searchParams.get("branch");
+        for (var i = 0; i < branchlist.length; i++) { 
+          let newOption = new Option(branchlist[i],branchlist[i]);
+          if (branch == branchlist[i]) {
+            newOption.selected = true
+          }
+          branches.add(newOption, undefined)
+        }
+        branches.addEventListener("change", function(){
+          console.log(branches.value);
+          var params = new URLSearchParams(window.location.search)
+          params.set("branch", branches.value)
+          window.location.href =  '//' + location.host + location.pathname + "?" + params.toString();
+        });
+      };
+
+      loadBranches();
+
+      // create links
+
+      function addOnClick() {
+        var elems = getElementsWithID("svg", "element");
+        for (let i = 0; i < elems.length; i++) {
+           elems[i].setAttribute("onclick", "updateQueryParam('focus', '"+elems[i].id+"');");
+        }
+      }
+
+      function updateQueryParam(a, b) {
+        var searchParams = new URLSearchParams(window.location.search);
+        if (b != '') {
+          searchParams.set(a, b);
+        } else {
+          searchParams.delete(a);
+        }
+        window.location.search = searchParams.toString();
+      }
+
+      function getElementsWithID(container, className) {
+        var items = [];
+        var elems = document.getElementById(container).getElementsByClassName(className);
+        for (var i = 0; i < elems.length; i++) {
+            if (elems[i].id != "") {
+                items.push(elems[i]);
+            }
+        }
+        return items;
+      }
+
+
+    </script>
+  </body>
+</html>
