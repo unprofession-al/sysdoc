@@ -13,7 +13,7 @@ import (
 	"github.com/go-git/go-billy/v5"
 )
 
-func New(basedir, glob string, focus []string, p persistence.Persistence) (*element, []error) {
+func NewSystem(basedir, glob string, focus []string, p persistence.Persistence) (*element, []error) {
 	sys, err := newElementFromPersistence(basedir, glob, p.Filesystem())
 	if err != nil {
 		return sys, []error{err}

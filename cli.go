@@ -118,7 +118,7 @@ func (a *App) renderCmd(cmd *cobra.Command, args []string) {
 	exitOnErr(err)
 
 	// build system
-	sys, errs := New(a.flags.base, a.flags.glob, a.flags.focus, p)
+	sys, errs := NewSystem(a.flags.base, a.flags.glob, a.flags.focus, p)
 	exitOnErr(errs...)
 
 	// render template

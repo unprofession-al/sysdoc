@@ -127,7 +127,7 @@ func (s *server) HandleSVG(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// build system
-	sys, errs := New(s.base, s.glob, focus, s.persistence)
+	sys, errs := NewSystem(s.base, s.glob, focus, s.persistence)
 	if len(errs) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		out := ""
