@@ -8,6 +8,7 @@ import (
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	ssh2 "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/go-git/go-git/v5/storage/memory"
 	"golang.org/x/crypto/ssh"
@@ -18,7 +19,7 @@ type gitrepo struct {
 	fs   billy.Filesystem
 }
 
-func NewGitRepo(keypath, pass, url string) (Persistence, error) {
+func NewGitRepoWithKey(keypath, pass, url string) (Persistence, error) {
 	gr := &gitrepo{}
 	pem, err := os.ReadFile(keypath)
 	if err != nil {
@@ -36,6 +37,20 @@ func NewGitRepo(keypath, pass, url string) (Persistence, error) {
 		Progress: os.Stdout,
 		Mirror:   true,
 	})
+	return gr, err
+}
+
+func NewGitRepoWithPassword(user, pass, url string) (Persistence, error) {
+	gr := &gitrepo{}
+	auth := &http.BasicAuth{Username: user, Password: pass}
+	gr.fs = memfs.New()
+	repo, err := git.Clone(memory.NewStorage(), gr.fs, &git.CloneOptions{
+		URL:      url,
+		Auth:     auth,
+		Progress: os.Stdout,
+		Mirror:   true,
+	})
+	gr.repo = repo
 	return gr, err
 }
 

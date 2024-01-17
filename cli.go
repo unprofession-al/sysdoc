@@ -17,6 +17,7 @@ type App struct {
 		focus      []string
 		git        struct {
 			url     string
+			user    string
 			branch  string
 			keyfile string
 			pass    string
@@ -55,10 +56,11 @@ func NewApp() *App {
 	rootCmd.PersistentFlags().StringVar(&a.flags.base, "base", ".", "base directory of the sysdoc definitions")
 	rootCmd.PersistentFlags().StringVar(&a.flags.glob, "glob", "README.md", "glob to find sysdoc definitions")
 	rootCmd.PersistentFlags().StringSliceVar(&a.flags.focus, "focus", []string{}, "elements to be focussed")
-	rootCmd.PersistentFlags().StringVar(&a.flags.git.url, "git.url", "", "configuration file path")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.url, "git.url", "", "url of git repo")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.user, "git.user", os.Getenv("GIT_USER"), "git user name (can be set via environment variable 'GIT_USER')")
 	rootCmd.PersistentFlags().StringVar(&a.flags.git.branch, "git.branch", "refs/heads/master", "git branch to be used")
-	rootCmd.PersistentFlags().StringVar(&a.flags.git.pass, "git.pass", os.Getenv("KEY_PASS"), "base directory of the sysdoc definitions (can be set via environment variable 'KEY_PASS')")
-	rootCmd.PersistentFlags().StringVar(&a.flags.git.keyfile, "git.keyfile", "", "glob to find sysdoc definitions")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.pass, "git.pass", os.Getenv("GIT_PASS"), "pass for key file or git user (can be set via environment variable 'GIT_PASS')")
+	rootCmd.PersistentFlags().StringVar(&a.flags.git.keyfile, "git.keyfile", "", "path to ssh key file")
 	a.Execute = rootCmd.Execute
 
 	// render
@@ -107,6 +109,7 @@ func (a *App) renderCmd(cmd *cobra.Command, args []string) {
 	var pc persistence.Config
 	pc.Filepath = a.flags.base
 	pc.Git.URL = a.flags.git.url
+	pc.Git.User = a.flags.git.user
 	pc.Git.Pass = a.flags.git.pass
 	pc.Git.Keyfile = a.flags.git.keyfile
 	p, err := persistence.New(pc)
@@ -141,6 +144,7 @@ func (a *App) serveCmd(cmd *cobra.Command, args []string) {
 	var pc persistence.Config
 	pc.Filepath = a.flags.base
 	pc.Git.URL = a.flags.git.url
+	pc.Git.User = a.flags.git.user
 	pc.Git.Pass = a.flags.git.pass
 	pc.Git.Keyfile = a.flags.git.keyfile
 	p, err := persistence.New(pc)
