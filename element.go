@@ -160,7 +160,6 @@ func newElementFromPersistence(basepath, matcher string, filesys billy.Filesyste
 			err = fmt.Errorf("Could not stat file '%s', error occured: %w", path, err)
 			return err
 		}
-		fmt.Println(info.Name())
 		if isHidden(info) {
 			return nil
 		}
