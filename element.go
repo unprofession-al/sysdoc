@@ -133,6 +133,17 @@ func getPosition(basepath, path string) []string {
 	return pos
 }
 
+func isHidden(f os.FileInfo) bool {
+	base := filepath.Base(f.Name())
+	if base == "." {
+		return false
+	}
+	if strings.HasPrefix(base, ".") {
+		return true
+	}
+	return false
+}
+
 func newElementFromPersistence(basepath, matcher string, filesys billy.Filesystem) (*element, error) {
 	basepath = filepath.Clean(basepath)
 	_, err := filesys.Stat(basepath)
@@ -148,6 +159,10 @@ func newElementFromPersistence(basepath, matcher string, filesys billy.Filesyste
 		if err != nil {
 			err = fmt.Errorf("Could not stat file '%s', error occured: %w", path, err)
 			return err
+		}
+		fmt.Println(info.Name())
+		if isHidden(info) {
+			return nil
 		}
 		if info.IsDir() {
 			elems, err := filesys.ReadDir(path)
